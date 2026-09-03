@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1e1e1e">
+<title>Sudoku Craft</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --grass:#5b8731; --grass-d:#3e5f22; --dirt:#79553d; --dirt-d:#4e3627;
+    --stone:#8b8b8b; --stone-l:#c6c6c6; --stone-d:#555; --night:#1e1e1e;
+    --gold:#ffd83d; --diamond:#4aedd9; --redstone:#e8362d; --emerald:#17dd62;
+    --paper:#f2efe6; --ink:#2a2118;
+    --font:'Press Start 2P', 'Courier New', monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:var(--font); color:#fff; background:var(--night);
+    background-image:
+      linear-gradient(rgba(0,0,0,.35),rgba(0,0,0,.35)),
+      repeating-linear-gradient(0deg,#3a3a3a 0 16px,#333 16px 32px),
+      repeating-linear-gradient(90deg,#3a3a3a 0 16px,#3d3d3d 16px 32px);
+    background-blend-mode:normal,multiply,normal;
+    min-height:100%; display:flex; flex-direction:column; align-items:center;
+    padding:12px 10px 24px; line-height:1.6; font-size:11px; image-rendering:pixelated;
+  }
+  /* franja de hierba superior */
+  body::before{content:"";position:fixed;left:0;right:0;top:0;height:14px;
+    background:var(--grass);border-bottom:4px solid var(--grass-d);z-index:5}
+  body::after{content:"";position:fixed;left:0;right:0;top:18px;height:8px;
+    background:var(--dirt);border-bottom:3px solid var(--dirt-d);z-index:5}
+
+  .app{width:100%;max-width:440px;margin-top:22px}
+  h1{font-size:18px;text-align:center;color:var(--gold);text-shadow:3px 3px 0 #5a4a00;margin:10px 0 4px;letter-spacing:1px}
+  .sub{text-align:center;color:var(--stone-l);font-size:9px;margin-bottom:12px}
+
+  /* botones estilo Minecraft */
+  .mc{font-family:var(--font);font-size:10px;color:#fff;background:var(--stone);
+    border:3px solid var(--night);box-shadow:inset -3px -3px 0 var(--stone-d),inset 3px 3px 0 var(--stone-l);
+    padding:11px 10px;cursor:pointer;text-shadow:2px 2px 0 #3f3f3f;user-select:none;touch-action:manipulation}
+  .mc:active{box-shadow:inset 3px 3px 0 var(--stone-d),inset -3px -3px 0 var(--stone-l);transform:translate(1px,1px)}
+  .mc.green{background:var(--grass);box-shadow:inset -3px -3px 0 var(--grass-d),inset 3px 3px 0 #86bf50}
+  .mc.green:active{box-shadow:inset 3px 3px 0 var(--grass-d),inset -3px -3px 0 #86bf50}
+  .mc.gold{background:#c9a000;color:var(--night);text-shadow:none;box-shadow:inset -3px -3px 0 #7a6000,inset 3px 3px 0 var(--gold)}
+  .mc.on{background:var(--diamond);color:var(--night);text-shadow:none;box-shadow:inset -3px -3px 0 #1f9c8b,inset 3px 3px 0 #b6fff5}
+  .mc:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+  .panel{background:rgba(0,0,0,.55);border:3px solid var(--night);padding:12px;margin-bottom:12px}
+  .row{display:flex;gap:6px;flex-wrap:wrap}
+  .row .mc{flex:1;min-width:70px}
+
+  /* barra de experiencia = progreso */
+  .xp{margin:10px 0 4px}
+  .xp-bar{height:14px;background:#000;border:3px solid var(--night);box-shadow:inset 0 0 0 2px #3a3a3a;position:relative}
+  .xp-fill{height:100%;background:var(--emerald);width:0;transition:width .3s}
+  .xp-label{display:flex;justify-content:space-between;font-size:9px;color:var(--emerald);margin-top:5px}
+  .stats{display:flex;justify-content:space-between;font-size:9px;color:var(--stone-l);margin-top:6px}
+  .hearts{color:var(--redstone);letter-spacing:1px}
+
+  /* tablero */
+  .board{display:grid;grid-template-columns:repeat(9,1fr);border:4px solid var(--night);
+    background:var(--night);gap:1px;width:100%;aspect-ratio:1;box-shadow:0 0 0 3px var(--stone-d)}
+  .cell{display:flex;align-items:center;justify-content:center;background:var(--paper);color:var(--ink);
+    font-size:clamp(14px,4.6vw,20px);cursor:pointer;position:relative;transition:background .15s}
+  .cell.given{background:#d9d3c2;color:#3b3226}
+  .cell.sel{background:var(--gold)!important;color:var(--night)}
+  .cell.same{background:#fff2b3}
+  .cell.wrong{background:#ffb3ad;color:var(--redstone)}
+  .cell.wrong::after{content:"";position:absolute;inset:0;border:2px solid var(--redstone)}
+  .cell.done{background:#bff7d7}
+  .cell.hint{background:#c9fff8}
+  .cell.flash{animation:flash .6s}
+  @keyframes flash{0%,100%{background:var(--paper)}50%{background:var(--diamond)}}
+  .cell:nth-child(9n+3),.cell:nth-child(9n+6){border-right:3px solid var(--night)}
+  .cell:nth-child(n+19):nth-child(-n+27),.cell:nth-child(n+46):nth-child(-n+54){border-bottom:3px solid var(--night)}
+
+  /* teclado numérico */
+  .pad{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
+  .pad .mc{padding:14px 0;font-size:14px;text-align:center}
+  .pad .mc.used{opacity:.4}
+  .actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+  .actions .mc{padding:12px 4px;font-size:9px;text-align:center}
+
+  /* toast logro */
+  .toast{position:fixed;top:36px;left:50%;transform:translate(-50%,-140%);background:#212121;border:3px solid var(--night);
+    box-shadow:inset -3px -3px 0 #111,inset 3px 3px 0 #444;padding:10px 14px;font-size:9px;color:var(--gold);
+    transition:transform .35s;z-index:20;max-width:92vw;text-align:center;line-height:1.7}
+  .toast.show{transform:translate(-50%,0)}
+  .toast small{display:block;color:#fff;font-size:8px}
+
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;padding:16px;z-index:30}
+  .modal.open{display:flex}
+  .box{background:var(--dirt);border:4px solid var(--night);box-shadow:inset -4px -4px 0 var(--dirt-d),inset 4px 4px 0 #a07b5e;
+    padding:18px 16px;max-width:400px;width:100%;text-align:center}
+  .box h2{font-size:13px;color:var(--gold);text-shadow:2px 2px 0 var(--dirt-d);margin-bottom:12px;line-height:1.8}
+  .box p{font-size:10px;line-height:1.9;color:#fff;margin-bottom:14px;text-shadow:1px 1px 0 var(--dirt-d)}
+  .box .mc{width:100%}
+  .box.bday{background:#2b1b4d;box-shadow:inset -4px -4px 0 #150a2a,inset 4px 4px 0 #5a3d8f}
+  .box.bday h2{color:var(--diamond);text-shadow:2px 2px 0 #150a2a}
+  .box.bday p{text-shadow:1px 1px 0 #150a2a}
+  .cake{font-size:34px;line-height:1;margin-bottom:10px}
+  .hidden{display:none}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>SUDOKU CRAFT</h1>
+  <p class="sub" id="greet">Un nuevo mundo se ha generado</p>
+
+  <!-- pantalla inicio -->
+  <div class="panel" id="start">
+    <p style="font-size:9px;color:var(--stone-l);margin-bottom:10px">Elige la dificultad del mundo:</p>
+    <div class="row" id="diffs">
+      <button class="mc" data-d="0">Pacífico</button>
+      <button class="mc" data-d="1">Fácil</button>
+      <button class="mc" data-d="2">Normal</button>
+      <button class="mc" data-d="3">Difícil</button>
+      <button class="mc" data-d="4">Hardcore</button>
+    </div>
+    <p id="diffdesc" style="font-size:8px;color:var(--stone-l);margin-top:10px;min-height:28px"></p>
+    <button class="mc green" id="play" style="width:100%;margin-top:10px">Crear nuevo mundo</button>
+  </div>
+
+  <!-- juego -->
+  <div class="panel hidden" id="game">
+    <div class="xp">
+      <div class="xp-bar"><div class="xp-fill" id="fill"></div></div>
+      <div class="xp-label"><span>Progreso</span><span id="pct">0%</span></div>
+      <div class="stats">
+        <span id="difflabel"></span>
+        <span class="hearts">♥♥♥ ∞</span>
+        <span id="errs">Golpes: 0</span>
+      </div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="pad" id="pad"></div>
+    <div class="actions">
+      <button class="mc" id="erase">Borrar</button>
+      <button class="mc gold" id="hint">Ayuda</button>
+      <button class="mc" id="newgame">Nuevo mundo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="modal">
+  <div class="box" id="box">
+    <div class="cake hidden" id="cake">🎂</div>
+    <h2 id="mtitle"></h2>
+    <p id="mtext"></p>
+    <button class="mc green" id="mbtn">Seguir explorando</button>
+  </div>
+</div>
+
+<script>
+/* ---------- CONFIG ---------- */
+const DIFFS=[
+ {n:'Pacífico', holes:30, desc:'Para calentar los bloques. Sin peligro.'},
+ {n:'Fácil',    holes:38, desc:'Un día tranquilo minando.'},
+ {n:'Normal',   holes:46, desc:'Ya se escuchan zombies cerca.'},
+ {n:'Difícil',  holes:52, desc:'Un creeper te sigue en silencio.'},
+ {n:'Hardcore', holes:58, desc:'El Ender Dragon te observa.'}
+];
+const BIRTH_MONTH=9, BIRTH_DAY=4;   // 4 de septiembre
+const NOMBRE='Diego';
+
+const COMUNES=[
+ ['¡Logro desbloqueado!','Cada bloque que pones hoy es un pedazo del castillo que estás construyendo en tu vida. No pares.'],
+ ['Diamante encontrado','Lo valioso siempre está más abajo, donde pocos se atreven a cavar. Tú seguiste cavando.'],
+ ['Sobreviviste la noche','Los días difíciles también terminan. Al amanecer, sigues aquí y más fuerte que ayer.'],
+ ['Aldea encontrada','Nadie construye solo. Recuerda quién está contigo en cada bloque. Yo estoy.'],
+ ['Dragón derrotado','Terminaste lo que empezaste. Esa constancia es tu mayor poder, dentro y fuera del juego.']
+];
+const MSGS=[
+ /* Pacífico */ [
+ ['Primer amanecer','Todo gran mundo empieza con un primer día tranquilo. Hoy diste el primer paso, y eso ya cuenta.'],
+ ['Madera recolectada','Lo básico no es poco: es la base. Cuida los cimientos de tu vida y todo lo demás se sostiene.'],
+ ['Fogata encendida','Un poco de calor cambia toda la noche. Sé esa luz para ti mismo primero.'],
+ ['Semillas plantadas','No hace falta ver el resultado hoy. Sembrar ya es confiar en el mañana.'],
+ ['Casa de tierra','No importa cuán simple sea tu refugio si te protege. Empezar humilde no es empezar mal.'],
+ ['Río encontrado','Sigue la corriente cuando te lleve a buen puerto y nada contra ella cuando valga la pena.'],
+ ['Cama colocada','Descansar también es avanzar. Cuídate como cuidas a los que amas.'],
+ ['Pan horneado','Las cosas buenas toman su tiempo en el horno. Ten paciencia contigo.'],
+ ['Oveja esquilada','Recoge lo que la vida te da con calma; no todo hay que arrancarlo con fuerza.'],
+ ['Modo pacífico','Hay días para pelear y días para simplemente estar en paz. Hoy fue uno bueno.'],
+ ['Flor recogida','Detenerte a mirar lo pequeño no es perder tiempo: es ganar vida.'],
+ ['Mesa de crafteo','Con lo que ya tienes en las manos puedes crear más de lo que imaginas.'],
+ ['Cielo despejado','Las nubes siempre pasan. Guarda la calma para cuando vuelvan.'],
+ ['Cofre encontrado','Lo que buscas a veces está más cerca de lo que crees. Abre el cofre.'],
+ ['Lobo domesticado','La confianza se construye con pequeños gestos repetidos. Con los demás y contigo.'],
+ ['Antorcha puesta','Una decisión pequeña de hoy ilumina el camino de mañana.']
+ ],
+ /* Fácil */ [
+ ['Pico de piedra','Con herramientas simples y voluntad, cualquier montaña se abre paso a paso.'],
+ ['Carbón encontrado','No todo lo que brilla es diamante, pero todo lo que sirve vale. Valora tu progreso real.'],
+ ['Hierro fundido','Bajo presión y calor es cuando tomas tu mejor forma. No temas al fuego.'],
+ ['Puente construido','Cada problema es una orilla. Tú ya sabes tender puentes.'],
+ ['Cosecha lista','Lo que sembraste con paciencia hoy da fruto. Confía en tu proceso.'],
+ ['Nivel de experiencia +1','No existe el jugador que nació sabiendo. Cada error fue un bloque de aprendizaje.'],
+ ['Mapa completado','No necesitas ver todo el mapa para dar el siguiente paso. Solo el siguiente bloque.'],
+ ['Caña de pescar','La paciencia no es esperar: es esperar sabiendo que algo bueno viene.'],
+ ['Barco a la vela','Cuando el camino por tierra se acaba, siempre hay otra forma de avanzar.'],
+ ['Cueva explorada','Entrar a lo oscuro con una antorcha es más valiente que quedarse afuera.'],
+ ['Escudo craftado','Protegerte no es huir. Es saber cuánto vales.'],
+ ['Caballo domado','Lo que hoy parece imposible de controlar, mañana te lleva más lejos.'],
+ ['Zombie derrotado','Hay cosas que solo vencen con constancia. Golpe a golpe también se gana.'],
+ ['Faro encendido','Cuando encuentras tu luz, otros pueden orientarse con ella.'],
+ ['Modo creativo','Tu vida no tiene un solo camino correcto. La estás construyendo y va quedando hermosa.'],
+ ['Huerto ampliado','Crecer no es hacer más ruido, es echar raíces más profundas.']
+ ],
+ /* Normal */ [
+ ['Portal activado','Cuando algo se siente imposible, respira: los portales solo se abren para los que se acercan.'],
+ ['Creeper esquivado','No todo lo que explota te destruye. Lo que queda en pie eres tú.'],
+ ['Armadura de hierro','No naciste blindado: te fuiste forjando con cada golpe que aguantaste.'],
+ ['Mina profunda','Ir más profundo da miedo, pero ahí está lo que nadie más encuentra.'],
+ ['Tormenta superada','El rayo cae y el mundo sigue. Tú también sigues, y eso es todo.'],
+ ['Esqueleto vencido','A la distancia todo parece amenazante. De cerca, casi todo se puede vencer.'],
+ ['Redstone conectada','Todo lo que has vivido está conectado. Nada de lo que aprendiste se pierde.'],
+ ['Nether visitado','Fuiste al lugar difícil y volviste. Eso ya te cambió.'],
+ ['Encantamiento aplicado','Lo que te hace único no es la herramienta, es cómo la usas.'],
+ ['Fortaleza encontrada','Lo que buscas con paciencia aparece. Lo que buscas con prisa se esconde.'],
+ ['Elytra equipada','A veces hay que saltar sin ver el suelo. Tú sabes volar más de lo que admites.'],
+ ['Cultivo de calabazas','Algunas metas parecen lentas hasta el día en que de pronto están listas.'],
+ ['Yunque usado','Reparar lo roto es más valiente que tirarlo. Aplica a cosas y a personas.'],
+ ['Aldeano comerciante','Aprende a intercambiar: dar tiempo, recibir calma. Dar esfuerzo, recibir paz.'],
+ ['Mesa de encantamientos','Cada libro que abres te agrega un nivel. Nunca dejes de aprender.'],
+ ['Mundo guardado','Lo que construiste hoy no se borra. Mañana sigue desde aquí.']
+ ],
+ /* Difícil */ [
+ ['Armadura de netherita','Eres más resistente de lo que crees. Ya sobreviviste al 100% de tus peores días.'],
+ ['Enderman evitado','No mires de frente lo que solo quiere provocarte. Elige tus batallas.'],
+ ['Wither derrotado','Lo que parecía que te iba a consumir, terminó dándote una estrella.'],
+ ['Bastión saqueado','Entraste donde nadie quería entrar y saliste con oro. Así es tu vida.'],
+ ['Ciudad del End','Lo que está lejos no es inalcanzable. Es solo más lejos.'],
+ ['Templo del desierto','Bajo la arena hay tesoros. Bajo los días duros, también.'],
+ ['Guardián vencido','Hay miedos que te miran fijo. Míralos tú también y sigue nadando.'],
+ ['Faro de nivel máximo','Ese esfuerzo silencioso que nadie ve termina iluminando kilómetros.'],
+ ['Tótem de inmortalidad','Hay algo dentro de ti que no se rinde aunque todo lo demás falle.'],
+ ['Cuevas profundas','Las cosas más brillantes estaban en lo más oscuro. Siempre es así.'],
+ ['Puente al End','Construiste el camino que no existía. Eso hacen los que no se detienen.'],
+ ['Nether reconstruido','Puedes vivir en lugares difíciles sin volverte duro. Sigue siendo tú.'],
+ ['Reloj craftado','Tu tiempo es el recurso más valioso que tienes. Hoy lo usaste bien.'],
+ ['Blaze derrotado','Del fuego que te hirió, sacaste el polvo que enciende tus portales.'],
+ ['Ojo de ender','Cuando no sabes hacia dónde ir, lánzalo: la respuesta siempre apunta a algún lado.'],
+ ['Modo difícil completado','Elegiste el camino difícil y llegaste. No hay atajo que valga más que eso.']
+ ],
+ /* Hardcore */ [
+ ['Modo hardcore superado','Una sola vida y aun así lo lograste. Esa es la valentía de verdad.'],
+ ['Ender Dragon caído','Miraste al dragón a los ojos. Nada de lo que venga es más grande que tú.'],
+ ['Sin respawn','Cuando no hay segunda oportunidad, cada decisión pesa. Hoy decidiste bien.'],
+ ['Estrella del Nether','De la batalla más oscura salió lo que ilumina todo lo demás.'],
+ ['Huevo de dragón','Los trofeos raros son para quienes pagan el precio raro. Tú lo pagaste.'],
+ ['Islas del fin','Llegaste donde termina el mapa y descubriste que eras tú quien lo dibujaba.'],
+ ['Warden esquivado','Hay cosas que no se ganan peleando, se ganan sabiendo cuándo callar y avanzar.'],
+ ['Tótem consumido','Justo cuando pensaste que caías, algo dentro te sostuvo. Siempre estuvo ahí.'],
+ ['100 días sobrevividos','La disciplina es hacer el bloque 100 con la misma calma que el primero.'],
+ ['Antigua ciudad','Lo más profundo y silencioso de ti guarda lo más valioso.'],
+ ['Corazón de netherita','Fuiste al fondo, aguantaste el fuego y volviste con lo indestructible.'],
+ ['Sin vidas, sin miedo','No es que no tuviste miedo: es que fuiste igual. Así se vive.'],
+ ['Créditos finales','Terminaste el juego y sigues aquí. La vida también tiene créditos, y aún faltan muchos.'],
+ ['Dragón, segunda vez','Vencer una vez es suerte. Volver a vencer es carácter.'],
+ ['Mundo hardcore guardado','Todo lo que construiste con una sola vida vale el doble. Cuídalo.'],
+ ['Leyenda del servidor','Lo que hiciste hoy es de lo que hablan los aldeanos. Eres de esos.']
+ ]
+].map(l=>l.concat(COMUNES));
+
+const BDAY={
+ title:`¡FELIZ CUMPLEAÑOS, YEYO!`,
+ text:`Celebro con gusto que existas y que estés en mi vida. De todos los servidores del mundo, me llena de alegría haber entrado al tuyo. Contigo mi mundo tiene más luz y es más fácil de explorar; me ayudaste a encontrar un hogar que no creí que podría tener.\n\nGracias por ser el mejor compañero de aventuras que pude encontrar, por darme un lugar seguro y por convertirte en mi persona favorita.\n\nTe amo. Deseo que cumplas cada meta que te propongas en la vida, y espero seguir acompañándote en cada paso que des en medio de este servidor tan caótico. ♥`
+};
+
+/* ---------- FECHA (con modo de prueba ?fecha=2026-09-04) ---------- */
+function esCumple(){
+  const p=new URLSearchParams(location.search).get('fecha');
+  const d=p?new Date(p+'T12:00:00'):new Date();
+  return d.getMonth()+1===BIRTH_MONTH && d.getDate()===BIRTH_DAY;
+}
+
+/* ---------- GENERADOR SUDOKU ---------- */
+const rnd=a=>a.sort(()=>Math.random()-.5);
+function ok(g,r,c,v){
+  for(let i=0;i<9;i++){ if(g[r*9+i]===v||g[i*9+c]===v) return false; }
+  const br=r-r%3, bc=c-c%3;
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++) if(g[(br+i)*9+bc+j]===v) return false;
+  return true;
+}
+function fill(g,i=0){
+  if(i===81) return true;
+  if(g[i]) return fill(g,i+1);
+  const r=Math.floor(i/9),c=i%9;
+  for(const v of rnd([1,2,3,4,5,6,7,8,9])){
+    if(ok(g,r,c,v)){ g[i]=v; if(fill(g,i+1)) return true; g[i]=0; }
+  }
+  return false;
+}
+function countSol(g,i=0,cap=2){
+  if(i===81) return 1;
+  if(g[i]) return countSol(g,i+1,cap);
+  const r=Math.floor(i/9),c=i%9; let n=0;
+  for(let v=1;v<=9&&n<cap;v++){
+    if(ok(g,r,c,v)){ g[i]=v; n+=countSol(g,i+1,cap-n); g[i]=0; }
+  }
+  return n;
+}
+function generar(holes){
+  const sol=new Array(81).fill(0); fill(sol);
+  const puz=sol.slice(); const idx=rnd([...Array(81).keys()]);
+  let removed=0;
+  for(const i of idx){
+    if(removed>=holes) break;
+    const bk=puz[i]; puz[i]=0;
+    if(countSol(puz.slice())!==1){ puz[i]=bk; } else removed++;
+  }
+  return {sol,puz};
+}
+
+/* ---------- ESTADO ---------- */
+let diff=1, sol=[], puz=[], grid=[], sel=-1, errs=0, hints=0;
+let doneRows=new Set(), doneCols=new Set(), doneBox=new Set();
+const $=id=>document.getElementById(id);
+
+/* ---------- UI INICIO ---------- */
+const diffBtns=[...document.querySelectorAll('#diffs .mc')];
+function setDiff(d){ diff=d; diffBtns.forEach(b=>b.classList.toggle('on',+b.dataset.d===d)); $('diffdesc').textContent=DIFFS[d].desc; }
+diffBtns.forEach(b=>b.onclick=()=>setDiff(+b.dataset.d));
+setDiff(1);
+if(esCumple()) { $('greet').textContent='Hoy el mundo se generó con algo especial… termina el reto y lo verás ♥'; }
+
+$('play').onclick=()=>iniciar();
+$('newgame').onclick=()=>{ $('game').classList.add('hidden'); $('start').classList.remove('hidden'); };
+
+function iniciar(){
+  $('play').textContent='Generando mundo…';
+  setTimeout(()=>{
+    ({sol,puz}=generar(DIFFS[diff].holes));
+    grid=puz.slice(); sel=-1; errs=0; hints=0;
+    doneRows.clear(); doneCols.clear(); doneBox.clear();
+    $('difflabel').textContent=DIFFS[diff].n;
+    $('errs').textContent='Golpes: 0';
+    $('start').classList.add('hidden'); $('game').classList.remove('hidden');
+    $('play').textContent='Crear nuevo mundo';
+    render(); progreso();
+  },30);
+}
+
+/* ---------- TABLERO ---------- */
+const board=$('board');
+board.innerHTML=[...Array(81)].map((_,i)=>`<div class="cell" data-i="${i}" role="button" tabindex="0"></div>`).join('');
+const cells=[...board.children];
+cells.forEach(c=>{ c.onclick=()=>select(+c.dataset.i); });
+
+function render(){
+  cells.forEach((c,i)=>{
+    const v=grid[i]; c.textContent=v||'';
+    c.className='cell';
+    if(puz[i]) c.classList.add('given');
+    if(v && v!==sol[i]) c.classList.add('wrong');
+    const r=Math.floor(i/9), col=i%9, b=Math.floor(r/3)*3+Math.floor(col/3);
+    if(doneRows.has(r)||doneCols.has(col)||doneBox.has(b)) c.classList.add('done');
+    if(sel>=0 && grid[sel] && grid[i]===grid[sel] && i!==sel) c.classList.add('same');
+    if(i===sel) c.classList.add('sel');
+  });
+  renderPad();
+}
+function select(i){ sel=i; render(); }
+
+/* teclado */
+const pad=$('pad');
+pad.innerHTML=[1,2,3,4,5,6,7,8,9].map(n=>`<button class="mc" data-n="${n}">${n}</button>`).join('')+
+  `<button class="mc" id="clearsel">✕</button>`;
+pad.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>poner(+b.dataset.n));
+$('clearsel').onclick=()=>poner(0);
+$('erase').onclick=()=>poner(0);
+function renderPad(){
+  pad.querySelectorAll('[data-n]').forEach(b=>{
+    const n=+b.dataset.n, cnt=grid.filter((v,i)=>v===n&&v===sol[i]).length;
+    b.classList.toggle('used',cnt===9);
+  });
+}
+document.addEventListener('keydown',e=>{
+  if($('game').classList.contains('hidden')) return;
+  if(e.key>='1'&&e.key<='9') poner(+e.key);
+  if(e.key==='Backspace'||e.key==='Delete'||e.key==='0') poner(0);
+  if(sel>=0){
+    const r=Math.floor(sel/9), c=sel%9;
+    if(e.key==='ArrowUp'&&r>0) select(sel-9);
+    if(e.key==='ArrowDown'&&r<8) select(sel+9);
+    if(e.key==='ArrowLeft'&&c>0) select(sel-1);
+    if(e.key==='ArrowRight'&&c<8) select(sel+1);
+  }
+});
+
+/* ---------- JUGADA ---------- */
+function poner(v){
+  if(sel<0){ toast('Toca una casilla primero','Selecciona un bloque vacío del tablero'); return; }
+  if(puz[sel]) return;
+  if(grid[sel]===v) return;
+  grid[sel]=v;
+  if(v && v!==sol[sel]){
+    errs++; $('errs').textContent='Golpes: '+errs;
+    if(navigator.vibrate) navigator.vibrate(80);
+    toast('¡Ouch! Ese bloque no va ahí','Vidas infinitas: inténtalo de nuevo');
+  } else if(v){ checkUnidades(sel); }
+  render(); progreso();
+}
+function completa(idxs){ return idxs.every(i=>grid[i]===sol[i]); }
+function checkUnidades(i){
+  const r=Math.floor(i/9), c=i%9, b=Math.floor(r/3)*3+Math.floor(c/3);
+  const rowI=[...Array(9)].map((_,k)=>r*9+k);
+  const colI=[...Array(9)].map((_,k)=>k*9+c);
+  const br=Math.floor(b/3)*3, bc=(b%3)*3;
+  const boxI=[]; for(let x=0;x<3;x++)for(let y=0;y<3;y++) boxI.push((br+x)*9+bc+y);
+  const logros=[];
+  if(!doneRows.has(r)&&completa(rowI)){ doneRows.add(r); logros.push('Fila '+(r+1)+' completa'); flash(rowI); }
+  if(!doneCols.has(c)&&completa(colI)){ doneCols.add(c); logros.push('Columna '+(c+1)+' completa'); flash(colI); }
+  if(!doneBox.has(b)&&completa(boxI)){ doneBox.add(b); logros.push('Cuadro '+(b+1)+' completo'); flash(boxI); }
+  if(logros.length) toast('¡Logro desbloqueado!',logros.join(' · '));
+}
+function flash(idxs){ idxs.forEach(i=>{ cells[i].classList.remove('flash'); void cells[i].offsetWidth; cells[i].classList.add('flash'); }); }
+
+function progreso(){
+  const correctas=grid.filter((v,i)=>v===sol[i]).length;
+  const p=Math.round(correctas/81*100);
+  $('fill').style.width=p+'%'; $('pct').textContent=p+'%';
+  if(p===100) setTimeout(victoria,500);
+}
+
+/* ---------- AYUDA ---------- */
+$('hint').onclick=()=>{
+  const wrong=grid.map((v,i)=>v&&v!==sol[i]?i:-1).filter(i=>i>=0);
+  const vacias=grid.map((v,i)=>!v?i:-1).filter(i=>i>=0);
+  let i;
+  if(sel>=0 && !puz[sel] && grid[sel]!==sol[sel]) i=sel;
+  else if(wrong.length) i=wrong[0];
+  else if(vacias.length) i=vacias[Math.floor(Math.random()*vacias.length)];
+  else return;
+  grid[i]=sol[i]; hints++; sel=i;
+  cells[i].classList.add('hint');
+  toast('Poción de visión usada','Un aldeano te reveló el bloque '+(Math.floor(i/9)+1)+'-'+(i%9+1));
+  checkUnidades(i); render(); cells[i].classList.add('hint'); progreso();
+};
+
+/* ---------- TOAST ---------- */
+let tt;
+function toast(t,s){
+  const el=$('toast'); el.innerHTML=t+(s?`<small>${s}</small>`:''); el.classList.add('show');
+  clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+/* ---------- VICTORIA ---------- */
+const ultimo=[-1,-1,-1,-1,-1];
+function victoria(){
+  const box=$('box'); box.classList.remove('bday'); $('cake').classList.add('hidden');
+  if(esCumple()){
+    box.classList.add('bday'); $('cake').classList.remove('hidden');
+    $('mtitle').textContent=BDAY.title; $('mtext').textContent=BDAY.text;
+    $('mbtn').textContent='♥ Jugar otra vez';
+  } else {
+    const L=MSGS[diff]; let k; do{ k=Math.floor(Math.random()*L.length); }while(k===ultimo[diff]);
+    ultimo[diff]=k;
+    $('mtitle').textContent=L[k][0];
+    $('mtext').textContent=L[k][1]+(hints||errs?`\n\n(${DIFFS[diff].n} · ${errs} golpes · ${hints} ayudas)`:`\n\n(${DIFFS[diff].n} · sin errores ni ayudas: ¡perfecto!)`);
+    $('mbtn').textContent='Seguir explorando';
+  }
+  $('mtext').style.whiteSpace='pre-line';
+  $('modal').classList.add('open');
+}
+$('mbtn').onclick=()=>{ $('modal').classList.remove('open'); $('game').classList.add('hidden'); $('start').classList.remove('hidden'); };
+</script>
+</body>
+</html>
